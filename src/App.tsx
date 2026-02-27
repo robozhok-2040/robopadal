@@ -23,7 +23,7 @@ type Session = {
   name: string
   players: Player[]
   matches: Match[]
-  courtSwapByRound: Record<number, boolean>
+  swapOverrideByRound: Record<number, boolean>
 }
 
 type StandingsRow = {
@@ -89,9 +89,14 @@ const generateMatches = (): Match[] => {
 const initialPlayerInputs = Array.from({ length: 8 }, () => '')
 const TOTAL_ROUNDS = 7
 
-const normalizeSession = (parsed: Session): Session => ({
+const defaultSwap = (round: number) => round % 2 === 0
+
+const getEffectiveSwap = (swapOverrideByRound: Record<number, boolean>, round: number) =>
+  defaultSwap(round) !== !!swapOverrideByRound[round]
+
+const normalizeSession = (parsed: Session & { courtSwapByRound?: Record<number, boolean> }): Session => ({
   ...parsed,
-  courtSwapByRound: parsed.courtSwapByRound ?? {}
+  swapOverrideByRound: parsed.swapOverrideByRound ?? parsed.courtSwapByRound ?? {}
 })
 
 function App() {
@@ -181,7 +186,7 @@ function App() {
     if (!session) return [] as Match[][]
     return Array.from({ length: TOTAL_ROUNDS }, (_, idx) => {
       const round = idx + 1
-      const isSwapped = !!session.courtSwapByRound[round]
+      const isSwapped = getEffectiveSwap(session.swapOverrideByRound, round)
       const roundMatches = session.matches
         .filter((match) => match.round === round)
         .sort((a, b) => a.court - b.court)
@@ -210,7 +215,7 @@ function App() {
       name: sessionNameInput.trim() || defaultSessionName,
       players,
       matches: generateMatches(),
-      courtSwapByRound: {}
+      swapOverrideByRound: {}
     }
 
     persistSession(nextSession)
@@ -220,12 +225,17 @@ function App() {
   const toggleCourtSwap = (round: number) => {
     if (!session) return
 
+    const currentOverride = !!session.swapOverrideByRound[round]
+    const nextOverrides = { ...session.swapOverrideByRound }
+    if (currentOverride) {
+      delete nextOverrides[round]
+    } else {
+      nextOverrides[round] = true
+    }
+
     const next: Session = {
       ...session,
-      courtSwapByRound: {
-        ...session.courtSwapByRound,
-        [round]: !session.courtSwapByRound[round]
-      }
+      swapOverrideByRound: nextOverrides
     }
 
     persistSession(next)
@@ -408,7 +418,7 @@ function App() {
                     Поміняти корти
                   </button>
                   <span className="hint-inline">
-                    (зараз: {session.courtSwapByRound[idx + 1] ? 'поміняно' : 'стандарт'})
+                    ({getEffectiveSwap(session.swapOverrideByRound, idx + 1) ? 'поміняно' : 'стандарт'})
                   </span>
                 </div>
               </div>
