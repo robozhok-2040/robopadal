@@ -32,6 +32,7 @@ type StandingsRow = {
 }
 
 const STORAGE_KEY = 'robopadal-americano-session'
+const TOTAL_POINTS_KEY = 'robopadal-americano-total-points'
 
 const dateLabel = () => {
   const now = new Date()
@@ -87,6 +88,7 @@ const generateMatches = (): Match[] => {
 const initialPlayerInputs = Array.from({ length: 8 }, () => '')
 
 function App() {
+  const [totalPoints, setTotalPoints] = useState<24 | 32>(32)
   const [session, setSession] = useState<Session | null>(null)
   const [sessionNameInput, setSessionNameInput] = useState(defaultSessionName)
   const [playerInputs, setPlayerInputs] = useState<string[]>(initialPlayerInputs)
@@ -94,6 +96,11 @@ function App() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    const storedTotalPoints = localStorage.getItem(TOTAL_POINTS_KEY)
+    if (storedTotalPoints === '24' || storedTotalPoints === '32') {
+      setTotalPoints(Number(storedTotalPoints) as 24 | 32)
+    }
+
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return
 
@@ -112,6 +119,26 @@ function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   }
 
+  const updateTotalPoints = (nextTotalPoints: 24 | 32) => {
+    setTotalPoints(nextTotalPoints)
+    localStorage.setItem(TOTAL_POINTS_KEY, String(nextTotalPoints))
+
+    if (!session) return
+
+    const next: Session = {
+      ...session,
+      matches: session.matches.map((match) => {
+        if (match.scoreA === null) return match
+        return {
+          ...match,
+          scoreA: Math.max(0, Math.min(nextTotalPoints, match.scoreA))
+        }
+      })
+    }
+
+    persistSession(next)
+  }
+
   const standings = useMemo<StandingsRow[]>(() => {
     if (!session) return []
 
@@ -121,7 +148,7 @@ function App() {
     session.matches.forEach((match) => {
       if (match.scoreA === null) return
       const scoreA = match.scoreA
-      const scoreB = 32 - scoreA
+      const scoreB = totalPoints - scoreA
 
       match.teamA.players.forEach((playerId) => {
         const row = totals.get(playerId)
@@ -141,7 +168,7 @@ function App() {
     return session.players
       .map((player) => ({ player, ...totals.get(player.id)! }))
       .sort((a, b) => b.points - a.points || a.player.name.localeCompare(b.player.name))
-  }, [session])
+  }, [session, totalPoints])
 
   const groupedMatches = useMemo(() => {
     if (!session) return [] as Match[][]
@@ -183,7 +210,7 @@ function App() {
 
   const updateScore = (matchId: string, scoreA: number) => {
     if (!session) return
-    const clamped = Math.max(0, Math.min(32, scoreA))
+    const clamped = Math.max(0, Math.min(totalPoints, scoreA))
     const next: Session = {
       ...session,
       matches: session.matches.map((match) =>
@@ -220,7 +247,7 @@ function App() {
       roundMatches.forEach((match) => {
         const teamAName = `${getPlayerName(match.teamA.players[0])} / ${getPlayerName(match.teamA.players[1])}`
         const teamBName = `${getPlayerName(match.teamB.players[0])} / ${getPlayerName(match.teamB.players[1])}`
-        const score = match.scoreA === null ? 'No score' : `${match.scoreA}-${32 - match.scoreA}`
+        const score = match.scoreA === null ? 'No score' : `${match.scoreA}-${totalPoints - match.scoreA}`
         lines.push(`  Court ${match.court}: ${teamAName} vs ${teamBName} (${score})`)
       })
     })
@@ -300,6 +327,22 @@ function App() {
       </header>
 
       <div className="row">
+        <span>Total points per match:</span>
+        <button
+          className={`button ${totalPoints === 32 ? '' : 'button-secondary'}`}
+          onClick={() => updateTotalPoints(32)}
+        >
+          32
+        </button>
+        <button
+          className={`button ${totalPoints === 24 ? '' : 'button-secondary'}`}
+          onClick={() => updateTotalPoints(24)}
+        >
+          24
+        </button>
+      </div>
+
+      <div className="row">
         <button
           className={`button ${activeTab === 'matches' ? '' : 'button-secondary'}`}
           onClick={() => setActiveTab('matches')}
@@ -322,7 +365,7 @@ function App() {
               <h2>Round {idx + 1}</h2>
               {roundMatches.map((match) => {
                 const scoreA = match.scoreA ?? ''
-                const scoreB = match.scoreA === null ? 32 : 32 - match.scoreA
+                const scoreB = match.scoreA === null ? totalPoints : totalPoints - match.scoreA
                 return (
                   <div key={match.id} className="match">
                     <div className="match-main">
@@ -340,9 +383,9 @@ function App() {
                           id={match.id}
                           type="number"
                           min={0}
-                          max={32}
+                          max={totalPoints}
                           value={scoreA}
-                          className="input score-input"
+                          className="input score-input no-spin"
                           onChange={(e) => {
                             const value = Number(e.target.value)
                             if (Number.isNaN(value)) return

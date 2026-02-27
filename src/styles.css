@@ -115,6 +115,16 @@ body {
   margin-bottom: 0;
 }
 
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spin {
+  -moz-appearance: textfield;
+}
+
 .score-separator {
   font-weight: 700;
 }
