@@ -30,6 +30,9 @@ type StandingsRow = {
   player: Player
   points: number
   matchesPlayed: number
+  wins: number
+  draws: number
+  losses: number
 }
 
 const STORAGE_KEY = 'robopadal-americano-session'
@@ -154,19 +157,35 @@ function App() {
   const standings = useMemo<StandingsRow[]>(() => {
     if (!session) return []
 
-    const totals = new Map<number, { points: number; matchesPlayed: number }>()
-    session.players.forEach((player) => totals.set(player.id, { points: 0, matchesPlayed: 0 }))
+    const totals = new Map<
+      number,
+      { points: number; matchesPlayed: number; wins: number; draws: number; losses: number }
+    >()
+    session.players.forEach((player) =>
+      totals.set(player.id, { points: 0, matchesPlayed: 0, wins: 0, draws: 0, losses: 0 })
+    )
 
     session.matches.forEach((match) => {
       if (match.scoreA === null) return
       const scoreA = match.scoreA
       const scoreB = totalPoints - scoreA
+      const threshold = totalPoints / 2
+
+      const getResultKey = (score: number): 'wins' | 'draws' | 'losses' => {
+        if (score > threshold) return 'wins'
+        if (score === threshold) return 'draws'
+        return 'losses'
+      }
+
+      const teamAResult = getResultKey(scoreA)
+      const teamBResult = getResultKey(scoreB)
 
       match.teamA.players.forEach((playerId) => {
         const row = totals.get(playerId)
         if (!row) return
         row.points += scoreA
         row.matchesPlayed += 1
+        row[teamAResult] += 1
       })
 
       match.teamB.players.forEach((playerId) => {
@@ -174,6 +193,7 @@ function App() {
         if (!row) return
         row.points += scoreB
         row.matchesPlayed += 1
+        row[teamBResult] += 1
       })
     })
 
@@ -275,7 +295,9 @@ function App() {
     lines.push('')
     lines.push('Standings:')
     standings.forEach((row, idx) => {
-      lines.push(`${idx + 1}. ${row.player.name} - ${row.points} pts (${row.matchesPlayed} matches)`) 
+      lines.push(
+        `${idx + 1}. ${row.player.name} - ${row.points} pts (${row.matchesPlayed} matches) W:${row.wins} D:${row.draws} L:${row.losses}`
+      )
     })
 
     lines.push('')
@@ -470,7 +492,9 @@ function App() {
             {standings.map((row) => (
               <li key={row.player.id} className="standing-item">
                 <span>{row.player.name}</span>
-                <span>{row.points} pts · {row.matchesPlayed} matches</span>
+                <span>
+                  {row.points} pts · {row.matchesPlayed} matches · W:{row.wins} D:{row.draws} L:{row.losses}
+                </span>
               </li>
             ))}
           </ol>
