@@ -276,11 +276,33 @@ function App() {
     }
   }
 
+  const totalPointsSelector = (
+    <section className="card total-points-card">
+      <span className="label">Сума очок за матч</span>
+      <div className="row total-points-row">
+        <button
+          className={`button ${totalPoints === 32 ? '' : 'button-secondary'}`}
+          onClick={() => updateTotalPoints(32)}
+        >
+          32 (за замовчуванням)
+        </button>
+        <button
+          className={`button ${totalPoints === 24 ? '' : 'button-secondary'}`}
+          onClick={() => updateTotalPoints(24)}
+        >
+          24
+        </button>
+      </div>
+    </section>
+  )
+
   if (!session) {
     return (
       <main className="container">
         <h1>Padel Americano</h1>
         <p className="sub">8 players · 2 courts · 7 rounds</p>
+
+        {totalPointsSelector}
 
         <section className="card">
           <label className="label" htmlFor="sessionName">Session name</label>
@@ -326,21 +348,7 @@ function App() {
         <button className="button button-secondary" onClick={resetSession}>Reset</button>
       </header>
 
-      <div className="row">
-        <span>Total points per match:</span>
-        <button
-          className={`button ${totalPoints === 32 ? '' : 'button-secondary'}`}
-          onClick={() => updateTotalPoints(32)}
-        >
-          32
-        </button>
-        <button
-          className={`button ${totalPoints === 24 ? '' : 'button-secondary'}`}
-          onClick={() => updateTotalPoints(24)}
-        >
-          24
-        </button>
-      </div>
+      {totalPointsSelector}
 
       <div className="row">
         <button
