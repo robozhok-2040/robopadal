@@ -23,6 +23,7 @@ type Session = {
   name: string
   players: Player[]
   matches: Match[]
+  courtSwapByRound: Record<number, boolean>
 }
 
 type StandingsRow = {
@@ -86,6 +87,12 @@ const generateMatches = (): Match[] => {
 }
 
 const initialPlayerInputs = Array.from({ length: 8 }, () => '')
+const TOTAL_ROUNDS = 7
+
+const normalizeSession = (parsed: Session): Session => ({
+  ...parsed,
+  courtSwapByRound: parsed.courtSwapByRound ?? {}
+})
 
 function App() {
   const [totalPoints, setTotalPoints] = useState<24 | 32>(32)
@@ -107,7 +114,7 @@ function App() {
     try {
       const parsed = JSON.parse(stored) as Session
       if (parsed?.players?.length === 8 && parsed?.matches?.length === 14) {
-        setSession(parsed)
+        setSession(normalizeSession(parsed))
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY)
@@ -172,9 +179,15 @@ function App() {
 
   const groupedMatches = useMemo(() => {
     if (!session) return [] as Match[][]
-    return Array.from({ length: 7 }, (_, idx) =>
-      session.matches.filter((match) => match.round === idx + 1)
-    )
+    return Array.from({ length: TOTAL_ROUNDS }, (_, idx) => {
+      const round = idx + 1
+      const isSwapped = !!session.courtSwapByRound[round]
+      const roundMatches = session.matches
+        .filter((match) => match.round === round)
+        .sort((a, b) => a.court - b.court)
+
+      return isSwapped ? [roundMatches[1], roundMatches[0]] : roundMatches
+    })
   }, [session])
 
   const createSession = () => {
@@ -196,11 +209,26 @@ function App() {
     const nextSession: Session = {
       name: sessionNameInput.trim() || defaultSessionName,
       players,
-      matches: generateMatches()
+      matches: generateMatches(),
+      courtSwapByRound: {}
     }
 
     persistSession(nextSession)
     setMessage('')
+  }
+
+  const toggleCourtSwap = (round: number) => {
+    if (!session) return
+
+    const next: Session = {
+      ...session,
+      courtSwapByRound: {
+        ...session.courtSwapByRound,
+        [round]: !session.courtSwapByRound[round]
+      }
+    }
+
+    persistSession(next)
   }
 
   const getPlayerName = (playerId: number) => {
@@ -244,11 +272,11 @@ function App() {
     lines.push('Matches:')
     groupedMatches.forEach((roundMatches, idx) => {
       lines.push(`Round ${idx + 1}`)
-      roundMatches.forEach((match) => {
+      roundMatches.forEach((match, matchIdx) => {
         const teamAName = `${getPlayerName(match.teamA.players[0])} / ${getPlayerName(match.teamA.players[1])}`
         const teamBName = `${getPlayerName(match.teamB.players[0])} / ${getPlayerName(match.teamB.players[1])}`
         const score = match.scoreA === null ? 'No score' : `${match.scoreA}-${totalPoints - match.scoreA}`
-        lines.push(`  Court ${match.court}: ${teamAName} vs ${teamBName} (${score})`)
+        lines.push(`  Court ${matchIdx + 1}: ${teamAName} vs ${teamBName} (${score})`)
       })
     })
 
@@ -370,14 +398,27 @@ function App() {
         <section className="stack">
           {groupedMatches.map((roundMatches, idx) => (
             <article className="card" key={idx}>
-              <h2>Round {idx + 1}</h2>
-              {roundMatches.map((match) => {
+              <div className="round-header">
+                <h2>Round {idx + 1}</h2>
+                <div className="round-controls">
+                  <button
+                    className="button button-secondary button-small"
+                    onClick={() => toggleCourtSwap(idx + 1)}
+                  >
+                    Поміняти корти
+                  </button>
+                  <span className="hint-inline">
+                    (зараз: {session.courtSwapByRound[idx + 1] ? 'поміняно' : 'стандарт'})
+                  </span>
+                </div>
+              </div>
+              {roundMatches.map((match, matchIdx) => {
                 const scoreA = match.scoreA ?? ''
                 const scoreB = match.scoreA === null ? totalPoints : totalPoints - match.scoreA
                 return (
                   <div key={match.id} className="match">
                     <div className="match-main">
-                      <strong>Court {match.court}</strong>
+                      <strong>Court {matchIdx + 1}</strong>
                       <p>
                         {getPlayerName(match.teamA.players[0])} / {getPlayerName(match.teamA.players[1])}
                         {' '}vs{' '}
